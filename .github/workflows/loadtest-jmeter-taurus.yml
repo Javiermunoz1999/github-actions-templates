@@ -63,7 +63,7 @@ on:
         description: "Versión de Python"
         required: false
         type: string
-        default: "3.11"
+        default: "3.7"
 
       # Modo de instalación de JMeter
       use_taurus_managed_jmeter:
@@ -115,8 +115,9 @@ jobs:
 
       - name: Install Taurus (bzt)
         run: |
-          python -m pip install --upgrade pip
-          pip install --upgrade bzt
+          sudo apt-get update
+          sudo apt-get install python3 default-jre-headless python3-tk python3-pip python3-dev libxml2-dev libxslt-dev zlib1g-dev net-tools
+          sudo python3 -m pip install bzt          
           bzt --version
 
       # --- Opción 1: JMeter gestionado por Taurus ---
