@@ -120,11 +120,6 @@ jobs:
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install --no-cache-dir --upgrade bzt
     
-      - name: Check bzt
-        run: |
-          which bzt
-          bzt --version
-
       # --- Opción 1: JMeter gestionado por Taurus ---
       - name: Pre-cache tools (Taurus-managed JMeter)
         if: ${{ inputs.use_taurus_managed_jmeter }}
