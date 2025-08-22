@@ -1,0 +1,216 @@
+name: Reusable - Taurus/JMeter Perf Test
+
+on:
+  workflow_call:
+    inputs:
+      # Ruta del archivo de configuración de Taurus (bzt)
+      taurus_config_path:
+        description: "Ruta del YAML de Taurus (por defecto: modular/Jmeter/Scenarios.yaml)"
+        required: false
+        type: string
+        default: "modular/Jmeter/Scenarios.yaml"
+
+      # Nombre del escenario dentro del archivo Taurus (ej. scenarios.arrivals_scenario.*)
+      scenario_name:
+        description: "Nombre del escenario configurado en Taurus (ej. arrivals_scenario)"
+        required: false
+        type: string
+        default: "arrivals_scenario"
+
+      # Parámetros de llegada / rampa / hold / concurrencia (como texto para permitir 10, 1m, 60s, etc.)
+      arrival_rate:
+        description: "arrival_rate para el escenario"
+        required: true
+        type: string
+      ramp_up_time:
+        description: "ramp_up_time"
+        required: true
+        type: string
+      ramp_up_steps:
+        description: "ramp_up_steps"
+        required: true
+        type: string
+      hold_time:
+        description: "hold_time"
+        required: true
+        type: string
+      concurrency_limit:
+        description: "concurrency_limit"
+        required: true
+        type: string
+
+      # Directorio de artefactos/resultado de Taurus
+      artifacts_dir:
+        description: "Directorio de salida de Taurus"
+        required: false
+        type: string
+        default: "taurus-output-load"
+
+      # Granularidad de responseTimeOverTime
+      granularity_ms:
+        description: "Granularidad (ms) para el reporte de JMeter"
+        required: false
+        type: string
+        default: "5000"
+
+      # Versiones de Java / Python
+      java_version:
+        description: "Versión de Java"
+        required: false
+        type: string
+        default: "17"
+      python_version:
+        description: "Versión de Python"
+        required: false
+        type: string
+        default: "3.11"
+
+      # Modo de instalación de JMeter
+      use_taurus_managed_jmeter:
+        description: "Dejar que Taurus instale/gestione JMeter automáticamente"
+        required: false
+        type: boolean
+        default: true
+
+      # Si eliges instalación manual de JMeter
+      jmeter_version:
+        description: "Versión de JMeter si no se usa el modo Taurus-managed"
+        required: false
+        type: string
+        default: "5.6.3"
+
+      # Plugins a instalar (IDs separados por coma, ej. 'jpgc-casutg,jpgc-graphs-basic')
+      jmeter_plugins_csv:
+        description: "Lista CSV de plugins de JMeter a instalar"
+        required: false
+        type: string
+        default: ""
+
+      # Opciones adicionales libres para bzt (se concatenan al final)
+      extra_bzt_opts:
+        description: "Flags/overrides adicionales para bzt (-o ...)"
+        required: false
+        type: string
+        default: ""
+
+      # Subdirectorio de trabajo (si tus YAMLs no están en la raíz)
+      working_directory:
+        description: "Ruta base para ejecutar"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  perf-test:
+    name: Run Taurus/JMeter
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ${{ inputs.working_directory }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ inputs.java_version }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python_version }}
+
+      - name: Install Taurus (bzt)
+        run: |
+          python -m pip install --upgrade pip
+          pip install --upgrade bzt
+          bzt --version
+
+      # --- Opción 1: JMeter gestionado por Taurus ---
+      - name: Pre-cache tools (Taurus-managed JMeter)
+        if: ${{ inputs.use_taurus_managed_jmeter }}
+        run: |
+          # Esto descarga/prepara herramientas que Taurus usa (incl. JMeter)
+          bzt -install-tools
+          # Intento robusto de localizar el JMETER_HOME instalado por Taurus
+          JMETER_HOME="$(find "$HOME/.bzt" -maxdepth 4 -type d -name "apache-jmeter-*" | head -n1)"
+          if [ -z "$JMETER_HOME" ]; then
+            echo "No se pudo localizar JMeter instalado por Taurus" >&2
+            exit 1
+          fi
+          echo "JMETER_HOME=$JMETER_HOME" | tee -a "$GITHUB_ENV"
+          "$JMETER_HOME/bin/jmeter" --version || true
+
+
+      # Plugins opcionales (si se proporcionan)
+      - name: Install JMeter Plugins (Plugins Manager)
+        if: ${{ inputs.jmeter_plugins_csv != '' }}
+        run: |
+          set -euo pipefail
+          if [ -z "${JMETER_HOME:-}" ]; then
+            echo "JMETER_HOME no está definido. Revisa pasos previos de instalación de JMeter." >&2
+            exit 1
+          fi
+
+          PLUGINS_DIR="$JMETER_HOME/lib/ext"
+          mkdir -p "$PLUGINS_DIR"
+          # Descarga del Plugins Manager y cmdrunner
+          echo "Descargando jmeter-plugins-manager.jar"
+          curl -fsSL "https://jmeter-plugins.org/get/" -o "$PLUGINS_DIR/jmeter-plugins-manager.jar"
+
+          echo "Descargando cmdrunner (necesario para PluginManagerCMD)"
+          curl -fsSL "https://repo1.maven.org/maven2/kg/apc/cmdrunner/2.2/cmdrunner-2.2.jar" -o "$JMETER_HOME/lib/cmdrunner-2.2.jar"
+
+          # Ejecutar instalación de plugins
+          echo "Instalando plugins: ${{ inputs.jmeter_plugins_csv }}"
+          java -cp "$PLUGINS_DIR/jmeter-plugins-manager.jar:$JMETER_HOME/lib/cmdrunner-2.2.jar" \
+            org.jmeterplugins.repository.PluginManagerCMD \
+            install ${{ inputs.jmeter_plugins_csv }}
+
+      - name: Show JMeter info
+        run: |
+          if [ -n "${JMETER_HOME:-}" ]; then
+            echo "JMETER_HOME: $JMETER_HOME"
+            "$JMETER_HOME/bin/jmeter" --version || true
+          fi
+
+      - name: Run Taurus (bzt) with overrides
+        env:
+          BZT_CFG: ${{ inputs.taurus_config_path }}
+          SCEN: ${{ inputs.scenario_name }}
+          AR: ${{ inputs.arrival_rate }}
+          RUT: ${{ inputs.ramp_up_time }}
+          RUS: ${{ inputs.ramp_up_steps }}
+          HT: ${{ inputs.hold_time }}
+          CL: ${{ inputs.concurrency_limit }}
+          ART: ${{ inputs.artifacts_dir }}
+          GRAN: ${{ inputs.granularity_ms }}
+          EXTRA: ${{ inputs.extra_bzt_opts }}
+        run: |
+          set -euo pipefail
+          echo "Ejecutando Taurus con:"
+          echo "  Config  : $BZT_CFG"
+          echo "  Escenario: $SCEN"
+          echo "  arrival_rate=$AR, ramp_up_time=$RUT, ramp_up_steps=$RUS, hold_time=$HT, concurrency_limit=$CL"
+          echo "  artifacts-dir=$ART, granularity=$GRAN"
+
+          bzt "$BZT_CFG" \
+            -o scenarios.${SCEN}.properties.arrival_rate="$AR" \
+            -o scenarios.${SCEN}.properties.ramp_up_time="$RUT" \
+            -o scenarios.${SCEN}.properties.ramp_up_steps="$RUS" \
+            -o scenarios.${SCEN}.properties.hold_time="$HT" \
+            -o scenarios.${SCEN}.properties.concurrency_limit="$CL" \
+            -o settings.artifacts-dir="$ART" \
+            -o modules.jmeter.properties.jmeter.reportgenerator.graph.responseTimeOverTime.granularity="$GRAN" \
+            $EXTRA
+
+      - name: Upload Taurus Artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taurus-artifacts
+          path: ${{ inputs.artifacts_dir }}
