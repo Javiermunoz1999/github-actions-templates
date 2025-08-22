@@ -93,13 +93,6 @@ on:
         type: string
         default: ""
 
-      # Subdirectorio de trabajo (si tus YAMLs no están en la raíz)
-      working_directory:
-        description: "Ruta base para ejecutar"
-        required: false
-        type: string
-        default: "modular/Jmeter"
-
 jobs:
   perf-test:
     name: Run Taurus/JMeter
@@ -125,11 +118,11 @@ jobs:
           python-version: ${{ inputs.python_version }}
 
       - name: Install Taurus (bzt) in venv
-      run: |
-        python -m venv .venv
-        echo "$PWD/.venv/bin" >> "$GITHUB_PATH"  # disponible SOLO en steps siguientes
-        .venv/bin/python -m pip install --upgrade pip
-        .venv/bin/pip install --no-cache-dir --upgrade bzt
+        run: |
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"  # disponible SOLO en steps siguientes
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install --no-cache-dir --upgrade bzt
     
       - name: Check bzt
         run: |
