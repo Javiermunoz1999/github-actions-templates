@@ -117,7 +117,7 @@ jobs:
         with:
           python-version: ${{ inputs.python_version }}
 
-      - name: Install Taurus (bzt) in venv
+      - name: Install Taurus (bzt)
         run: |
           python -m venv .venv
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"  # disponible SOLO en steps siguientes
