@@ -93,21 +93,10 @@ on:
         type: string
         default: ""
 
-      # Subdirectorio de trabajo (si tus YAMLs no están en la raíz)
-      working_directory:
-        description: "Ruta base para ejecutar"
-        required: false
-        type: string
-        default: ""
-
 jobs:
   perf-test:
     name: Run Taurus/JMeter
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ inputs.working_directory }}
 
     steps:
       - name: Checkout
