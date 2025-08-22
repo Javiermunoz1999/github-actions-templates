@@ -63,7 +63,7 @@ on:
         description: "Versión de Python"
         required: false
         type: string
-        default: "3.1"
+        default: "3.11"
 
       # Modo de instalación de JMeter
       use_taurus_managed_jmeter:
