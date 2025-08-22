@@ -121,19 +121,30 @@ jobs:
           .venv/bin/pip install --no-cache-dir --upgrade bzt
     
       # --- Opción 1: JMeter gestionado por Taurus ---
-      - name: Pre-cache tools (Taurus-managed JMeter)
+      - name: Pre-cache only JMeter (skip Node/newman/k6/etc)
         if: ${{ inputs.use_taurus_managed_jmeter }}
         run: |
-          # Esto descarga/prepara herramientas que Taurus usa (incl. JMeter)
-          bzt -install-tools
-          # Intento robusto de localizar el JMETER_HOME instalado por Taurus
-          JMETER_HOME="$(find "$HOME/.bzt" -maxdepth 4 -type d -name "apache-jmeter-*" | head -n1)"
-          if [ -z "$JMETER_HOME" ]; then
-            echo "No se pudo localizar JMeter instalado por Taurus" >&2
+          set -euo pipefail
+          # Evita que Taurus intente instalar módulos que requieren Node u otros binarios
+          bzt -install-tools \
+            -o modules.newman.enabled=false \
+            -o modules.k6.enabled=false \
+            -o modules.mocha.enabled=false \
+            -o modules.nunit.enabled=false \
+            -o modules.xunit.enabled=false \
+            -o modules.tsung.enabled=false \
+            -o modules.ab.enabled=false \
+            -o modules.siege.enabled=false
+      
+          # Localiza el JMeter que descargó Taurus
+          JMETER_HOME="$(find "$HOME/.bzt" -maxdepth 4 -type d -name "apache-jmeter-*" | head -n1 || true)"
+          if [ -z "${JMETER_HOME:-}" ]; then
+            echo "No se pudo localizar JMeter instalado por Taurus." >&2
             exit 1
           fi
-          echo "JMETER_HOME=$JMETER_HOME" | tee -a "$GITHUB_ENV"
+          echo "JMETER_HOME=$JMETER_HOME" >> "$GITHUB_ENV"
           "$JMETER_HOME/bin/jmeter" --version || true
+
 
 
       # Plugins opcionales (si se proporcionan)
