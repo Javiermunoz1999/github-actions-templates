@@ -115,9 +115,10 @@ jobs:
 
       - name: Install Taurus (bzt)
         run: |
-          sudo apt-get update
-          sudo apt-get install python3 default-jre-headless python3-tk python3-pip python3-dev libxml2-dev libxslt-dev zlib1g-dev net-tools
-          sudo python3 -m pip install bzt          
+          python -m venv .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"   # añade la venv al PATH para los siguientes steps
+          .venv/bin/python -m pip install --upgrade pip
+          .venv/bin/pip install --no-cache-dir --upgrade bzt
           bzt --version
 
       # --- Opción 1: JMeter gestionado por Taurus ---
