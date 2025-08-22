@@ -97,11 +97,7 @@ jobs:
   perf-test:
     name: Run Taurus/JMeter
     runs-on: [self-hosted, Linux, X64, PSOFKA0986]
-    defaults:
-      run:
-        shell: bash
-        working-directory: ${{ inputs.working_directory }}
-
+   
     steps:
       - name: Checkout
         uses: actions/checkout@v4
