@@ -96,7 +96,7 @@ on:
 jobs:
   perf-test:
     name: Run Taurus/JMeter
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X64, PSOFKA0986]
     defaults:
       run:
         shell: bash
